@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thread & Ledger — Abaya Tracker</title>
+<style>
+:root{
+  --ink:#fbf2ec;--panel:#ffffff;--line:#e3cfc4;--charcoal:#fffdfb;
+  --ivory:#3a2c25;--dim:#6e574b;--gold:#9c6b56;--gold2:#7a4f3e;
+  --good:#3f7a4a;--bad:#a8392c;--warn:#b8862f;--r:10px;
+  --serif:'Iowan Old Style','Palatino Linotype',Georgia,serif;
+  --sans:'Avenir Next','Segoe UI',Helvetica,Arial,sans-serif;
+  --mono:'SF Mono','Courier New',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:radial-gradient(1200px 500px at 80% -10%,#f3e0d6,transparent 60%),var(--ink);color:var(--ivory);font-family:var(--sans);min-height:100vh;}
+.app{max-width:1200px;margin:0 auto;padding:28px 24px 80px;}
+/* Header */
+.header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:24px;gap:16px;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand svg{flex:none;}
+.brand h1{font-family:var(--serif);font-size:24px;font-weight:600;color:var(--ivory);}
+.brand p{font-size:11px;color:var(--dim);letter-spacing:.6px;text-transform:uppercase;margin-top:2px;}
+/* DB status */
+.db-status{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);padding:5px 12px;border:1px solid var(--line);border-radius:999px;}
+.db-dot{width:7px;height:7px;border-radius:50%;background:#ccc;flex:none;}
+.db-dot.ok{background:var(--good);}.db-dot.err{background:var(--bad);}.db-dot.loading{background:var(--warn);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+/* Tabs */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;}
+.tab{background:none;border:1px solid transparent;color:var(--dim);font-family:var(--sans);font-size:13px;padding:8px 14px;border-radius:999px;cursor:pointer;transition:.15s;}
+.tab:hover{color:var(--ivory);}
+.tab.active{background:var(--panel);border-color:var(--line);color:var(--gold2);font-weight:600;}
+/* Views */
+.view{display:none;}.view.active{display:block;animation:fade .2s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+/* Cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;margin-bottom:18px;}
+.card h2{font-family:var(--serif);font-size:16px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+.eyebrow{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold2);}
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;position:relative;overflow:hidden;}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold);}
+.kpi .lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);}
+.kpi .val{font-family:var(--serif);font-size:24px;margin-top:5px;}
+.kpi .val.good{color:var(--good);}.kpi .val.bad{color:var(--bad);}
+.kpi .sub{font-size:11px;color:var(--dim);margin-top:3px;}
+/* Form */
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin-bottom:4px;}
+input,select,textarea{width:100%;background:var(--charcoal);border:1px solid var(--line);color:var(--ivory);padding:8px 10px;border-radius:7px;font-family:var(--sans);font-size:13.5px;margin-bottom:12px;}
+textarea{resize:vertical;min-height:56px;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold2);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px;}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0 14px;}
+/* Buttons */
+.btn{background:var(--gold);color:var(--ink);border:none;font-weight:600;padding:9px 18px;border-radius:7px;cursor:pointer;font-size:13px;transition:.15s;}
+.btn:hover{background:#c08060;}.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn.ghost{background:none;border:1px solid var(--line);color:var(--dim);}
+.btn.ghost:hover{color:var(--ivory);border-color:var(--gold2);}
+.btn.sm{padding:5px 11px;font-size:11.5px;}
+.btn.danger{background:none;border:1px solid var(--bad);color:var(--bad);}
+.btn.danger:hover{background:var(--bad);color:#fff;}
+.savebar{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);padding:7px 9px;border-bottom:1px solid var(--line);}
+td{padding:9px 9px;border-bottom:1px solid var(--line);}
+tr:last-child td{border-bottom:none;}
+td.r,th.r{text-align:right;font-family:var(--mono);}
+.pos{color:var(--good);}.neg{color:var(--bad);}
+.empty{color:var(--dim);font-size:13px;padding:16px 0;text-align:center;}
+/* Pills */
+.pill{font-size:10px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--dim);}
+.pill.low{border-color:var(--bad);color:var(--bad);}
+.pill.good{border-color:var(--good);color:var(--good);}
+.pill.vip{border-color:var(--gold);color:var(--gold);}
+/* Grid layout */
+.two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+/* Item rows (order form) */
+.irow{display:grid;grid-template-columns:1.8fr .5fr .8fr .8fr .8fr .9fr auto;gap:6px;align-items:center;margin-bottom:4px;}
+.irow input{margin-bottom:0;font-size:12.5px;}
+.ihead{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);}
+.add-line{font-size:12px;color:var(--gold2);background:none;border:none;cursor:pointer;font-weight:600;padding:3px 0;}
+/* Insight rows */
+.insight{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);align-items:flex-start;}
+.insight:last-child{border-bottom:none;}
+.badge{flex:none;width:7px;height:7px;border-radius:50%;margin-top:5px;}
+.badge.good{background:var(--good);}.badge.warn{background:var(--warn);}.badge.bad{background:var(--bad);}
+.insight p{font-size:13px;line-height:1.5;color:var(--ivory);}
+/* Progress */
+.pwrap{height:9px;background:var(--charcoal);border-radius:6px;overflow:hidden;margin:6px 0;}
+.pbar{height:100%;border-radius:6px;background:var(--gold);transition:width .4s;}
+.pbar.done{background:var(--good);}.pbar.over{background:var(--bad);}
+/* Catalog cards */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:4px;}
+.cat-card{background:var(--charcoal);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;transition:.15s;}
+.cat-card:hover{border-color:var(--gold2);}
+.cat-img{width:100%;height:160px;object-fit:cover;background:#ede0d8;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;}
+.cat-img img{width:100%;height:100%;object-fit:cover;}
+.cat-body{padding:12px;}
+.cat-name{font-weight:600;font-size:14px;margin-bottom:4px;}
+.cat-costs{font-size:11.5px;color:var(--dim);line-height:1.7;}
+.cat-price{font-family:var(--serif);font-size:18px;color:var(--gold2);margin:6px 0 8px;}
+.cat-actions{display:flex;gap:6px;}
+/* Customer rows */
+.cust-row{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);align-items:flex-start;}
+.cust-row:last-child{border-bottom:none;}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--gold);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none;}
+.cust-info{flex:1;}
+.cust-name{font-weight:600;font-size:13.5px;}
+.cust-meta{font-size:11.5px;color:var(--dim);margin-top:2px;}
+.cust-note{font-size:11.5px;color:var(--dim);margin-top:3px;font-style:italic;}
+/* Cut advisor */
+.cut-row{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);}
+.cut-row:last-child{border-bottom:none;}
+.cut-ico{font-size:18px;flex:none;margin-top:1px;}
+.cut-title{font-size:13px;font-weight:600;margin-bottom:2px;}
+.cut-desc{font-size:12px;color:var(--dim);line-height:1.5;}
+.cut-save{font-size:11.5px;color:var(--good);font-weight:600;margin-top:2px;}
+/* Bar chart */
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:140px;padding-top:8px;}
+.bc-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+.bc-bars{display:flex;gap:3px;align-items:flex-end;height:100%;width:100%;justify-content:center;}
+.bc-bar{border-radius:3px 3px 0 0;}.bc-bar.rev{background:var(--gold);}.bc-bar.exp{background:#8a5a48;opacity:.55;}
+.bc-lbl{font-size:9px;color:var(--dim);margin-top:5px;}
+/* Calculator result */
+.calc-result{background:var(--charcoal);border:1px solid var(--line);border-radius:8px;padding:14px;margin-top:2px;}
+.calc-big{font-family:var(--serif);font-size:26px;}
+.calc-break{font-size:12px;color:var(--dim);line-height:1.8;margin-top:6px;}
+/* Mini bar */
+.mini-bars{display:flex;gap:5px;align-items:flex-end;height:70px;margin:8px 0;}
+.mb-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;}
+.mb-bar{width:100%;border-radius:3px 3px 0 0;background:var(--gold);}
+.mb-lbl{font-size:8.5px;color:var(--dim);margin-top:3px;text-align:center;}
+/* Photo upload */
+.photo-upload{border:2px dashed var(--line);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:.15s;margin-bottom:12px;position:relative;}
+.photo-upload:hover{border-color:var(--gold2);}
+.photo-upload input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.photo-preview{width:100%;max-height:200px;object-fit:cover;border-radius:6px;margin-bottom:8px;}
+/* Divider */
+hr.div{border:none;border-top:1px dashed var(--line);margin:16px 0;}
+.helper{font-size:11.5px;color:var(--dim);margin-top:-8px;margin-bottom:12px;}
+.flex{display:flex;align-items:center;gap:8px;}
+.flex-between{display:flex;justify-content:space-between;align-items:center;}
+/* Toast */
+.toast{position:fixed;bottom:22px;right:22px;background:var(--panel);border:1px solid var(--gold2);color:var(--ivory);padding:11px 16px;border-radius:8px;font-size:12.5px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:99;}
+.toast.show{opacity:1;transform:none;}
+/* Goal item */
+.goal-item{padding:12px 0;border-bottom:1px solid var(--line);}
+.goal-item:last-child{border-bottom:none;}
+.goal-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:4px;}
+/* Spin */
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@media(max-width:880px){
+  .kpi-row{grid-template-columns:1fr 1fr;}
+  .two-col{grid-template-columns:1fr;}
+  .g3,.g4{grid-template-columns:1fr 1fr;}
+  .irow{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="brand">
+    <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
+      <path d="M4 20 Q12 8 20 20 T36 20" stroke="#9c6b56" stroke-width="1.4" stroke-dasharray="3 3" fill="none"/>
+      <circle cx="4" cy="20" r="2" fill="#9c6b56"/><circle cx="36" cy="20" r="2" fill="#9c6b56"/>
+    </svg>
+    <div><h1>Thread &amp; Ledger</h1><p>Abaya Business Tracker</p></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div class="db-status" id="dbStatus">
+      <div class="db-dot loading" id="dbDot"></div>
+      <span id="dbLabel">Connecting…</span>
+    </div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="catalog">Catalog</button>
+    <button class="tab" data-view="orders">Orders</button>
+    <button class="tab" data-view="customers">Customers</button>
+    <button class="tab" data-view="materials">Materials</button>
+    <button class="tab" data-view="analytics">Analytics</button>
+    <button class="tab" data-view="tools">Tools</button>
+  </div>
+</div>
+
+<!-- ═══════════ DASHBOARD ═══════════ -->
+<div class="view active" id="view-dashboard">
+  <div class="kpi-row" id="kpiRow"><div class="kpi"><div class="lbl">Loading…</div><div class="val"><span class="spin"></span></div></div></div>
+  <div class="card" id="dashGoalCard" style="display:none;">
+    <h2>This Month's Goals <span class="eyebrow">live progress</span></h2>
+    <div id="dashGoals"></div>
+  </div>
+  <div class="card"><h2>Growth Insights <span class="eyebrow">what's working &amp; what to fix</span></h2><div id="insightsList"></div></div>
+  <div class="card"><h2>Cost Cut Opportunities <span class="eyebrow">where money is leaking</span></h2><div id="cutsList"></div></div>
+  <div class="two-col">
+    <div class="card">
+      <h2>Revenue vs Expense <span class="eyebrow" id="chartLabel"></span></h2>
+      <div style="display:flex;gap:14px;font-size:11px;color:var(--dim);margin-bottom:6px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;background:var(--gold);border-radius:2px;display:inline-block;"></span>Revenue</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;background:#8a5a48;opacity:.7;border-radius:2px;display:inline-block;"></span>Expense</span>
+      </div>
+      <div class="bar-chart" id="barChart"></div>
+    </div>
+    <div class="card"><h2>Low Stock Alerts</h2><div id="lowStockList"></div></div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <h2>Style Performance</h2>
+      <table><thead><tr><th>Style</th><th class="r">Units</th><th class="r">Revenue</th><th class="r">Margin</th></tr></thead>
+      <tbody id="styleTable"></tbody></table>
+    </div>
+    <div class="card"><h2>Spend Breakdown</h2><div id="spendBreakdown"></div></div>
+  </div>
+</div>
+
+<!-- ═══════════ CATALOG ═══════════ -->
+<div class="view" id="view-catalog">
+  <div class="card">
+    <h2 id="catFormTitle">Add Abaya to Catalog</h2>
+    <input type="hidden" id="catId">
+    <div class="g3">
+      <div><label>Abaya Name</label><input id="catName" placeholder="e.g. Midnight Crepe Classic"></div>
+      <div><label>Fabric Type</label><input id="catFabricType" placeholder="e.g. Black Crepe, Nida"></div>
+      <div><label>Suggested Sell Price (OMR)</label><input id="catPrice" type="number" step="0.01" value="0"></div>
+    </div>
+    <div class="g3">
+      <div><label>Fabric Cost (OMR)</label><input id="catFabricCost" type="number" step="0.01" value="0" oninput="calcCatMargin()"></div>
+      <div><label>Tailor Cost (OMR)</label><input id="catTailor" type="number" step="0.01" value="0" oninput="calcCatMargin()"></div>
+      <div><label>Extras / Lace (OMR)</label><input id="catExtras" type="number" step="0.01" value="0" oninput="calcCatMargin()"></div>
+    </div>
+    <div id="catMarginPreview" style="background:var(--charcoal);border:1px solid var(--line);border-radius:7px;padding:10px 14px;font-size:12.5px;color:var(--dim);margin-bottom:12px;">
+      Enter costs above to see your margin preview.
+    </div>
+    <div><label>Notes / Description</label><textarea id="catNotes" placeholder="e.g. Best seller in Ramadan. Available in sizes 52-58. Embroidery on sleeves."></textarea></div>
+    <div>
+      <label>Abaya Photo</label>
+      <div class="photo-upload" id="photoWrap">
+        <input type="file" accept="image/*" id="catPhotoFile" onchange="handlePhotoUpload(event)">
+        <div id="photoPrompt">
+          <div style="font-size:24px;margin-bottom:6px;">📷</div>
+          <div style="font-size:12.5px;color:var(--dim);">Click to upload a photo of this abaya</div>
+        </div>
+        <img id="catPhotoPreview" class="photo-preview" style="display:none;">
+        <button type="button" class="btn ghost sm" id="removePhotoBtn" style="display:none;margin-top:6px;" onclick="removePhoto()">Remove Photo</button>
+      </div>
+      <input type="hidden" id="catPhotoData">
+    </div>
+    <div class="savebar">
+      <button class="btn ghost" onclick="resetCatForm()">Clear</button>
+      <button class="btn" onclick="saveCatalogItem()">Save to Catalog</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Abaya Catalog <span class="eyebrow" id="catCount"></span></h2>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <input id="catSearch" placeholder="Search by name…" style="max-width:260px;margin-bottom:0;" oninput="renderCatalog()">
+    </div>
+    <div class="cat-grid" id="catGrid"></div>
+    <div class="empty" id="catEmpty" style="display:none;">No abayas in catalog yet — add your first one above.</div>
+  </div>
+</div>
+
+<!-- ═══════════ ORDERS ═══════════ -->
+<div class="view" id="view-orders">
+  <div class="card">
+    <h2 id="orderFormTitle">New Order</h2>
+    <input type="hidden" id="orderId">
+    <div class="g3">
+      <div><label>Customer Name</label><input id="customerName" placeholder="e.g. Maryam Al Balushi" list="custSuggestions"><datalist id="custSuggestions"></datalist></div>
+      <div><label>Order Date</label><input id="orderDate" type="date"></div>
+      <div><label>Sales Channel</label><select id="channel"><option>Instagram</option><option>WhatsApp</option><option>Store</option><option>Other</option></select></div>
+    </div>
+    <hr class="div">
+    <label>Abaya Items</label>
+    <div class="irow" style="margin-bottom:4px;">
+      <div class="ihead">Style / Catalog</div><div class="ihead">Qty</div><div class="ihead">Fabric</div><div class="ihead">Tailor</div><div class="ihead">Extras</div><div class="ihead">Sold For</div><div></div>
+    </div>
+    <div id="itemsWrap"></div>
+    <button class="add-line" onclick="addItemRow()">+ Add item</button>
+    <hr class="div">
+    <div class="g3">
+      <div>
+        <label>Packaging (auto)</label>
+        <div id="pkgDisplay" style="background:var(--charcoal);border:1px solid var(--line);padding:8px 10px;border-radius:7px;font-family:var(--mono);color:var(--gold2);font-weight:600;margin-bottom:12px;font-size:13px;">0.000 OMR</div>
+        <input type="hidden" id="costPkg" value="0">
+      </div>
+      <div><label>Shipping (OMR)</label><input id="costShip" type="number" step="0.01" value="0"></div>
+      <div><label>Marketing (OMR)</label><input id="costMkt" type="number" step="0.01" value="0"></div>
+    </div>
+    <div class="savebar">
+      <button class="btn ghost" onclick="resetOrderForm()">Clear</button>
+      <button class="btn" onclick="saveOrder()">Save Order</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>All Orders <span class="eyebrow" id="orderCount"></span></h2>
+    <table><thead><tr><th>Date</th><th>Customer</th><th>Channel</th><th>Items</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Profit</th><th class="r">Margin</th><th></th></tr></thead>
+    <tbody id="ordersTable"></tbody></table>
+    <div class="empty" id="ordersEmpty" style="display:none;">No orders yet.</div>
+  </div>
+</div>
+
+<!-- ═══════════ CUSTOMERS ═══════════ -->
+<div class="view" id="view-customers">
+  <div class="card">
+    <h2>Add / Edit Customer</h2>
+    <input type="hidden" id="custId">
+    <div class="g3">
+      <div><label>Name</label><input id="custName" placeholder="e.g. Fatma Al Rashdi"></div>
+      <div><label>Phone / Instagram</label><input id="custContact" placeholder="@handle or +968…"></div>
+      <div><label>Tag</label><select id="custTag"><option value="new">New</option><option value="regular">Regular</option><option value="vip">VIP ⭐</option><option value="inactive">Inactive</option></select></div>
+    </div>
+    <div><label>Notes</label><textarea id="custNotes" placeholder="Sizes, preferences, follow-up reminders…"></textarea></div>
+    <div class="savebar">
+      <button class="btn ghost" onclick="resetCustForm()">Clear</button>
+      <button class="btn" onclick="saveCustomer()">Save Customer</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Customer Book <span class="eyebrow" id="custCount"></span></h2>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <input id="custSearch" placeholder="Search…" style="max-width:220px;margin-bottom:0;" oninput="renderCustomers()">
+      <select id="custFilter" style="max-width:140px;margin-bottom:0;" onchange="renderCustomers()">
+        <option value="">All</option><option value="vip">VIP</option><option value="regular">Regular</option><option value="new">New</option><option value="inactive">Inactive</option>
+      </select>
+    </div>
+    <div id="custList"></div>
+  </div>
+</div>
+
+<!-- ═══════════ MATERIALS ═══════════ -->
+<div class="view" id="view-materials">
+  <div class="card">
+    <h2>Packaging Setup <span class="eyebrow">bulk ÷ qty = per abaya</span></h2>
+    <div class="g3">
+      <div><label>Batch Cost (OMR)</label><input id="pkgCost" type="number" step="0.01" value="0"></div>
+      <div><label>Qty Bought</label><input id="pkgQty" type="number" value="0"></div>
+      <div><label>Per Abaya (auto)</label>
+        <div id="pkgPer" style="background:var(--charcoal);border:1px solid var(--line);padding:8px 10px;border-radius:7px;font-family:var(--mono);color:var(--gold2);font-weight:600;margin-bottom:12px;font-size:13px;">0.000 OMR</div>
+      </div>
+    </div>
+    <div class="savebar"><button class="btn" onclick="savePkg()">Save Packaging</button></div>
+  </div>
+  <div class="card">
+    <h2 id="matFormTitle">Add Material</h2>
+    <input type="hidden" id="matId">
+    <div class="g4">
+      <div><label>Name</label><input id="matName" placeholder="e.g. Black Crepe"></div>
+      <div><label>Unit</label><input id="matUnit" placeholder="meter / piece"></div>
+      <div><label>Qty On Hand</label><input id="matQty" type="number" step="0.01" value="0"></div>
+      <div><label>Cost/Unit (OMR)</label><input id="matCost" type="number" step="0.01" value="0"></div>
+    </div>
+    <div class="g2">
+      <div><label>Low Stock Threshold</label><input id="matThresh" type="number" step="0.01" value="0"></div>
+      <div><label>Supplier</label><input id="matSupplier" placeholder="e.g. Muttrah Souq"></div>
+    </div>
+    <div class="savebar">
+      <button class="btn ghost" onclick="resetMatForm()">Clear</button>
+      <button class="btn" onclick="saveMaterial()">Save Material</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Stock On Hand</h2>
+    <table><thead><tr><th>Material</th><th>Unit</th><th class="r">Qty</th><th class="r">Cost/Unit</th><th class="r">Total Value</th><th>Status</th><th></th></tr></thead>
+    <tbody id="matsTable"></tbody></table>
+    <div class="empty" id="matsEmpty" style="display:none;">No materials yet.</div>
+  </div>
+</div>
+
+<!-- ═══════════ ANALYTICS ═══════════ -->
+<div class="view" id="view-analytics">
+  <div class="kpi-row" id="aKpi" style="grid-template-columns:repeat(3,1fr);"></div>
+  <div class="two-col">
+    <div class="card"><h2>Revenue by Month</h2><div id="aMonthChart"></div></div>
+    <div class="card"><h2>Revenue by Channel</h2><div id="aChannelChart"></div></div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <h2>Top Customers</h2>
+      <table><thead><tr><th>Customer</th><th class="r">Orders</th><th class="r">Spent</th><th class="r">Avg</th></tr></thead>
+      <tbody id="aTopCust"></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Style Performance</h2>
+      <table><thead><tr><th>Style</th><th class="r">Sold</th><th class="r">Revenue</th><th class="r">Margin</th></tr></thead>
+      <tbody id="aStyleTable"></tbody></table>
+    </div>
+  </div>
+  <div class="card"><h2>Monthly Profit Trend</h2><div id="aProfitChart"></div></div>
+</div>
+
+<!-- ═══════════ TOOLS ═══════════ -->
+<div class="view" id="view-tools">
+  <div class="card">
+    <h2>Price Calculator <span class="eyebrow">find your ideal price</span></h2>
+    <div class="g4">
+      <div><label>Fabric (OMR)</label><input id="cFabric" type="number" step="0.01" value="0" oninput="runCalc()"></div>
+      <div><label>Tailor (OMR)</label><input id="cTailor" type="number" step="0.01" value="0" oninput="runCalc()"></div>
+      <div><label>Extras (OMR)</label><input id="cExtras" type="number" step="0.01" value="0" oninput="runCalc()"></div>
+      <div><label>Other (OMR)</label><input id="cOther" type="number" step="0.01" value="0" oninput="runCalc()"></div>
+    </div>
+    <div class="g3">
+      <div><label>Target Margin (%)</label><input id="cMargin" type="number" value="35" oninput="runCalc()"></div>
+      <div><label>Qty</label><input id="cQty" type="number" value="1" oninput="runCalc()"></div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:12px;"><button class="btn" style="width:100%;" onclick="runCalc()">Calculate</button></div>
+    </div>
+    <div class="calc-result" id="calcResult"><div style="font-size:12px;color:var(--dim);">Enter costs above.</div></div>
+  </div>
+  <div class="card">
+    <h2>Monthly Goals</h2>
+    <input type="hidden" id="goalId">
+    <div class="g3">
+      <div><label>Goal Name</label><input id="goalName" placeholder="e.g. June Revenue"></div>
+      <div><label>Month</label><input id="goalMonth" type="month"></div>
+      <div><label>Type</label><select id="goalType"><option value="revenue">Revenue (OMR)</option><option value="profit">Profit (OMR)</option><option value="orders">No. of Orders</option></select></div>
+    </div>
+    <div class="g2">
+      <div><label>Target</label><input id="goalTarget" type="number" step="0.01" value="0"></div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:12px;gap:8px;">
+        <button class="btn ghost" onclick="resetGoalForm()" style="flex:1;">Clear</button>
+        <button class="btn" onclick="saveGoal()" style="flex:2;">Save Goal</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Your Goals <span class="eyebrow" id="goalsCount"></span></h2>
+    <div id="goalsList"><div class="empty">No goals yet.</div></div>
+  </div>
+</div>
+
+</div><!-- end .app -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONFIG — update API_BASE after deploying to Render
+// ══════════════════════════════════════════════════════════
+const API_BASE = window.location.origin; // works when served by Node.js
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+let orders=[], catalog=[], customers=[], materials=[], goals=[];
+let pkgSetup={bulkCost:0,bulkQty:0,costPerUnit:0};
+let iRowCount=0;
+
+// ══════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════
+const f2=n=>(+n||0).toFixed(2);
+const f3=n=>(+n||0).toFixed(3);
+const ini=n=>n.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?';
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+
+// ══════════════════════════════════════════════════════════
+// API CALLS
+// ══════════════════════════════════════════════════════════
+async function api(method, path, body){
+  try{
+    const opts={method,headers:{'Content-Type':'application/json'}};
+    if(body)opts.body=JSON.stringify(body);
+    const r=await fetch(API_BASE+path,opts);
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||r.statusText);}
+    return await r.json();
+  }catch(e){toast('API error: '+e.message);throw e;}
+}
+
+// DB status check
+async function checkDB(){
+  const dot=document.getElementById('dbDot');
+  const lbl=document.getElementById('dbLabel');
+  try{
+    const h=await fetch(API_BASE+'/api/health');
+    if(h.ok){dot.className='db-dot ok';lbl.textContent='MongoDB connected';}
+    else throw new Error();
+  }catch{dot.className='db-dot err';lbl.textContent='DB offline';}
+}
+
+// ══════════════════════════════════════════════════════════
+// LOAD ALL DATA
+// ══════════════════════════════════════════════════════════
+async function loadAll(){
+  try{
+    [orders,catalog,customers,materials,goals]=await Promise.all([
+      api('GET','/api/orders'),
+      api('GET','/api/catalog'),
+      api('GET','/api/customers'),
+      api('GET','/api/materials'),
+      api('GET','/api/goals'),
+    ]);
+    const ps=await api('GET','/api/settings/packaging');
+    if(ps.value)pkgSetup=ps.value;
+    document.getElementById('pkgCost').value=pkgSetup.bulkCost;
+    document.getElementById('pkgQty').value=pkgSetup.bulkQty;
+    document.getElementById('pkgPer').textContent=f3(pkgSetup.costPerUnit)+' OMR';
+    renderAll();
+  }catch(e){console.error('Load error',e);}
+}
+
+// ══════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════
+document.getElementById('tabs').addEventListener('click',e=>{
+  const btn=e.target.closest('.tab');if(!btn)return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+btn.dataset.view).classList.add('active');
+  if(btn.dataset.view==='analytics')renderAnalytics();
+});
+
+// ══════════════════════════════════════════════════════════
+// CATALOG
+// ══════════════════════════════════════════════════════════
+function handlePhotoUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const data=ev.target.result;
+    document.getElementById('catPhotoData').value=data;
+    const preview=document.getElementById('catPhotoPreview');
+    preview.src=data;preview.style.display='block';
+    document.getElementById('photoPrompt').style.display='none';
+    document.getElementById('removePhotoBtn').style.display='inline-block';
+  };
+  reader.readAsDataURL(file);
+}
+function removePhoto(){
+  document.getElementById('catPhotoData').value='';
+  document.getElementById('catPhotoPreview').style.display='none';
+  document.getElementById('catPhotoPreview').src='';
+  document.getElementById('photoPrompt').style.display='block';
+  document.getElementById('removePhotoBtn').style.display='none';
+  document.getElementById('catPhotoFile').value='';
+}
+
+function calcCatMargin(){
+  const fc=+document.getElementById('catFabricCost').value||0;
+  const tc=+document.getElementById('catTailor').value||0;
+  const ex=+document.getElementById('catExtras').value||0;
+  const sp=+document.getElementById('catPrice').value||0;
+  const pkg=pkgSetup.costPerUnit||0;
+  const total=fc+tc+ex+pkg;
+  const prev=document.getElementById('catMarginPreview');
+  if(total<=0){prev.innerHTML='Enter costs above to see margin preview.';return;}
+  const profit=sp-total;
+  const margin=sp>0?profit/sp*100:0;
+  prev.innerHTML=`Total cost: <strong>${f2(total)} OMR</strong> &nbsp;|&nbsp; Profit per abaya: <strong class="${profit>=0?'pos':'neg'}">${f2(profit)} OMR</strong> &nbsp;|&nbsp; Margin: <strong class="${margin>=30?'pos':margin<15?'neg':''}">${f2(margin)}%</strong>`;
+}
+
+function resetCatForm(){
+  document.getElementById('catId').value='';
+  document.getElementById('catFormTitle').textContent='Add Abaya to Catalog';
+  ['catName','catFabricType','catNotes'].forEach(id=>document.getElementById(id).value='');
+  ['catPrice','catFabricCost','catTailor','catExtras'].forEach(id=>document.getElementById(id).value=0);
+  removePhoto();
+  document.getElementById('catMarginPreview').innerHTML='Enter costs above to see margin preview.';
+}
+
+async function saveCatalogItem(){
+  const name=document.getElementById('catName').value.trim();
+  if(!name){toast('Please enter an abaya name.');return;}
+  const item={
+    name,
+    fabricType:document.getElementById('catFabricType').value.trim(),
+    fabricCost:+document.getElementById('catFabricCost').value||0,
+    tailorCost:+document.getElementById('catTailor').value||0,
+    extras:+document.getElementById('catExtras').value||0,
+    suggestedPrice:+document.getElementById('catPrice').value||0,
+    notes:document.getElementById('catNotes').value.trim(),
+    photo:document.getElementById('catPhotoData').value||'',
+  };
+  const id=document.getElementById('catId').value;
+  try{
+    let result;
+    if(id){result=await api('PUT','/api/catalog/'+id,item);catalog=catalog.map(c=>c._id==id?result:c);}
+    else{result=await api('POST','/api/catalog',item);catalog.push(result);}
+    resetCatForm();renderCatalog();updateOrderCatalogList();toast('Catalog item saved.');
+  }catch(e){}
+}
+
+function editCatalog(id){
+  const c=catalog.find(x=>String(x._id)===String(id));if(!c)return;
+  document.getElementById('catId').value=id;
+  document.getElementById('catFormTitle').textContent='Edit Abaya';
+  document.getElementById('catName').value=c.name;
+  document.getElementById('catFabricType').value=c.fabricType||'';
+  document.getElementById('catFabricCost').value=c.fabricCost||0;
+  document.getElementById('catTailor').value=c.tailorCost||0;
+  document.getElementById('catExtras').value=c.extras||0;
+  document.getElementById('catPrice').value=c.suggestedPrice||0;
+  document.getElementById('catNotes').value=c.notes||'';
+  if(c.photo){
+    document.getElementById('catPhotoData').value=c.photo;
+    const prev=document.getElementById('catPhotoPreview');
+    prev.src=c.photo;prev.style.display='block';
+    document.getElementById('photoPrompt').style.display='none';
+    document.getElementById('removePhotoBtn').style.display='inline-block';
+  }
+  calcCatMargin();
+  document.querySelector('[data-view="catalog"]').click();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function deleteCatalog(id){
+  if(!confirm('Delete this abaya from catalog?'))return;
+  try{await api('DELETE','/api/catalog/'+id);catalog=catalog.filter(c=>String(c._id)!==String(id));renderCatalog();toast('Deleted.');}catch(e){}
+}
+
+function renderCatalog(){
+  const search=(document.getElementById('catSearch').value||'').toLowerCase();
+  let list=catalog;
+  if(search)list=list.filter(c=>c.name.toLowerCase().includes(search)||(c.fabricType||'').toLowerCase().includes(search));
+  document.getElementById('catCount').textContent=catalog.length+' abayas';
+  document.getElementById('catEmpty').style.display=list.length?'none':'block';
+  const grid=document.getElementById('catGrid');
+  if(list.length===0){grid.innerHTML='';return;}
+  const pkg=pkgSetup.costPerUnit||0;
+  grid.innerHTML=list.map(c=>{
+    const totalCost=(c.fabricCost||0)+(c.tailorCost||0)+(c.extras||0)+pkg;
+    const profit=(c.suggestedPrice||0)-totalCost;
+    const margin=c.suggestedPrice>0?profit/c.suggestedPrice*100:0;
+    return `<div class="cat-card">
+      <div class="cat-img">${c.photo?`<img src="${c.photo}" alt="${c.name}">`:`<span>No photo</span>`}</div>
+      <div class="cat-body">
+        <div class="cat-name">${c.name}</div>
+        <div class="cat-costs">
+          ${c.fabricType?`Fabric: ${c.fabricType}<br>`:''}
+          Fabric cost: ${f2(c.fabricCost||0)} OMR<br>
+          Tailor: ${f2(c.tailorCost||0)} OMR<br>
+          Extras: ${f2(c.extras||0)} OMR<br>
+          Packaging: ${f3(pkg)} OMR<br>
+          <strong>Total cost: ${f2(totalCost)} OMR</strong>
+        </div>
+        <div class="cat-price">${f2(c.suggestedPrice||0)} OMR <span style="font-size:12px;color:${margin>=30?'var(--good)':margin<15?'var(--bad)':'var(--dim)'};">(${f2(margin)}% margin)</span></div>
+        ${c.notes?`<div style="font-size:11.5px;color:var(--dim);margin-bottom:8px;font-style:italic;">${c.notes}</div>`:''}
+        <div class="cat-actions">
+          <button class="btn ghost sm" onclick="editCatalog('${c._id}')">Edit</button>
+          <button class="btn danger sm" onclick="deleteCatalog('${c._id}')">Del</button>
+          <button class="btn sm" onclick="useInOrder('${c._id}')">+ Order</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function useInOrder(catId){
+  const c=catalog.find(x=>String(x._id)===String(catId));if(!c)return;
+  document.querySelector('[data-view="orders"]').click();
+  setTimeout(()=>{
+    addItemRow(c.name,1,c.fabricCost||0,c.tailorCost||0,c.extras||0,c.suggestedPrice||0);
+  },150);
+}
+
+// ══════════════════════════════════════════════════════════
+// ORDERS
+// ══════════════════════════════════════════════════════════
+function updateOrderCatalogList(){
+  let dl=document.getElementById('styleSuggestions');
+  if(!dl){dl=document.createElement('datalist');dl.id='styleSuggestions';document.body.appendChild(dl);}
+  const names=new Set([...catalog.map(c=>c.name),...orders.flatMap(o=>o.items.map(i=>i.styleName))]);
+  dl.innerHTML=[...names].map(n=>`<option value="${n}">`).join('');
+}
+
+function addItemRow(style='',qty=1,fabric=0,tailor=0,extras=0,price=''){
+  iRowCount++;
+  const id='ir_'+iRowCount;
+  const wrap=document.getElementById('itemsWrap');
+  const row=document.createElement('div');row.className='irow';row.id=id;
+  row.innerHTML=`
+    <input placeholder="Style name" class="is" value="${style}" list="styleSuggestions" oninput="onStyleInput(this,'${id}')">
+    <input type="number" min="1" class="iq" value="${qty}" oninput="updateLive()">
+    <input type="number" step="0.01" class="if" value="${fabric}" oninput="updateLive()">
+    <input type="number" step="0.01" class="it" value="${tailor}" oninput="updateLive()">
+    <input type="number" step="0.01" class="ie" value="${extras}" oninput="updateLive()">
+    <input type="number" step="0.01" class="ip" value="${price}" oninput="updateLive()">
+    <button class="btn danger sm" onclick="this.closest('.irow').remove();document.getElementById('${id}_s').remove();updateLive();">x</button>`;
+  wrap.appendChild(row);
+  const sub=document.createElement('div');sub.id=id+'_s';sub.style.cssText='font-size:11px;color:var(--dim);margin:-2px 0 10px;text-align:right;';
+  wrap.appendChild(sub);
+  updateLive();updateOrderCatalogList();
+}
+
+function onStyleInput(input, rowId){
+  const name=input.value;
+  const c=catalog.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  if(c){
+    const row=document.getElementById(rowId);
+    row.querySelector('.if').value=c.fabricCost||0;
+    row.querySelector('.it').value=c.tailorCost||0;
+    row.querySelector('.ie').value=c.extras||0;
+    if(!row.querySelector('.ip').value)row.querySelector('.ip').value=c.suggestedPrice||0;
+    updateLive();toast('Auto-filled costs from catalog for "'+c.name+'"');
+  }
+}
+
+function updateLive(){
+  let tQty=0;
+  document.querySelectorAll('#itemsWrap .irow').forEach(row=>{
+    const id=row.id;
+    const qty=+row.querySelector('.iq').value||0;
+    const fab=+row.querySelector('.if').value||0;
+    const tai=+row.querySelector('.it').value||0;
+    const ext=+row.querySelector('.ie').value||0;
+    const pri=+row.querySelector('.ip').value||0;
+    tQty+=qty;
+    const pkg=pkgSetup.costPerUnit||0;
+    const cost=fab+tai+ext+pkg;
+    const pp=pri-cost;
+    const sub=document.getElementById(id+'_s');
+    if(sub)sub.innerHTML=pri>0?`Cost ${f2(cost)} · Profit/abaya <span class="${pp>=0?'pos':'neg'}">${f2(pp)} OMR</span> × ${qty} = <span class="${pp>=0?'pos':'neg'}">${f2(pp*qty)} OMR</span>`:'';
+  });
+  const ppu=pkgSetup.costPerUnit||0;
+  document.getElementById('pkgDisplay').textContent=f3(ppu)+' × '+tQty+' = '+f2(ppu*tQty)+' OMR';
+  document.getElementById('costPkg').value=ppu*tQty;
+}
+
+function resetOrderForm(){
+  document.getElementById('orderId').value='';
+  document.getElementById('orderFormTitle').textContent='New Order';
+  document.getElementById('customerName').value='';
+  document.getElementById('orderDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('channel').value='Instagram';
+  document.getElementById('itemsWrap').innerHTML='';
+  ['costShip','costMkt'].forEach(id=>document.getElementById(id).value=0);
+  addItemRow();refreshCustSuggestions();
+}
+
+async function saveOrder(){
+  const customerName=document.getElementById('customerName').value.trim();
+  if(!customerName){toast('Enter a customer name.');return;}
+  const items=[];
+  document.querySelectorAll('#itemsWrap .irow').forEach(row=>{
+    const sn=row.querySelector('.is').value.trim();
+    const qty=+row.querySelector('.iq').value||0;
+    const fabric=+row.querySelector('.if').value||0;
+    const tailor=+row.querySelector('.it').value||0;
+    const extras=+row.querySelector('.ie').value||0;
+    const price=+row.querySelector('.ip').value||0;
+    if(sn&&qty>0)items.push({styleName:sn,qty,fabric,tailor,extras,price});
+  });
+  if(!items.length){toast('Add at least one item.');return;}
+  const costs={packaging:+document.getElementById('costPkg').value||0,shipping:+document.getElementById('costShip').value||0,marketing:+document.getElementById('costMkt').value||0};
+  const id=document.getElementById('orderId').value;
+  const order={customerName,orderDate:document.getElementById('orderDate').value,channel:document.getElementById('channel').value,items,costs};
+  try{
+    let result;
+    if(id){result=await api('PUT','/api/orders/'+id,order);orders=orders.map(o=>String(o._id)===id?result:o);}
+    else{result=await api('POST','/api/orders',order);orders.push(result);}
+    autoAddCustomer(customerName);
+    resetOrderForm();renderAll();toast('Order saved.');
+  }catch(e){}
+}
+
+function autoAddCustomer(name){
+  if(!customers.find(c=>c.name.toLowerCase()===name.toLowerCase())){
+    api('POST','/api/customers',{name,contact:'',tag:'new',notes:''}).then(r=>{customers.push(r);renderCustomers();refreshCustSuggestions();}).catch(()=>{});
+  }
+}
+
+function editOrder(id){
+  const o=orders.find(x=>String(x._id)===id);if(!o)return;
+  document.getElementById('orderId').value=id;
+  document.getElementById('orderFormTitle').textContent='Edit Order';
+  document.getElementById('customerName').value=o.customerName;
+  document.getElementById('orderDate').value=o.orderDate;
+  document.getElementById('channel').value=o.channel;
+  document.getElementById('itemsWrap').innerHTML='';
+  o.items.forEach(it=>addItemRow(it.styleName,it.qty,it.fabric||0,it.tailor||0,it.extras||0,it.price));
+  document.getElementById('costShip').value=o.costs.shipping||0;
+  document.getElementById('costMkt').value=o.costs.marketing||0;
+  updateLive();document.querySelector('[data-view="orders"]').click();window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function deleteOrder(id){
+  if(!confirm('Delete this order?'))return;
+  try{await api('DELETE','/api/orders/'+id);orders=orders.filter(o=>String(o._id)!==id);renderAll();toast('Deleted.');}catch(e){}
+}
+
+function oTotals(o){
+  const rev=o.items.reduce((s,it)=>s+it.qty*it.price,0);
+  const ic=o.items.reduce((s,it)=>s+it.qty*((it.fabric||0)+(it.tailor||0)+(it.extras||0)),0);
+  const sc=Object.values(o.costs||{}).reduce((s,v)=>s+v,0);
+  const cost=ic+sc;const profit=rev-cost;const margin=rev>0?profit/rev*100:0;
+  return{rev,cost,profit,margin};
+}
+
+function renderOrders(){
+  const tbody=document.getElementById('ordersTable');tbody.innerHTML='';
+  document.getElementById('orderCount').textContent=orders.length+' total';
+  document.getElementById('ordersEmpty').style.display=orders.length?'none':'block';
+  [...orders].sort((a,b)=>(b.orderDate||'').localeCompare(a.orderDate||'')).forEach(o=>{
+    const t=oTotals(o);const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${o.orderDate||''}</td><td>${o.customerName}</td><td><span class="pill">${o.channel}</span></td>
+      <td>${o.items.map(i=>i.styleName+' ×'+i.qty).join(', ')}</td>
+      <td class="r">${f2(t.rev)}</td><td class="r">${f2(t.cost)}</td>
+      <td class="r ${t.profit>=0?'pos':'neg'}">${f2(t.profit)}</td>
+      <td class="r ${t.profit>=0?'pos':'neg'}">${f2(t.margin)}%</td>
+      <td><button class="btn ghost sm" onclick="editOrder('${o._id}')">Edit</button> <button class="btn danger sm" onclick="deleteOrder('${o._id}')">Del</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// CUSTOMERS
+// ══════════════════════════════════════════════════════════
+function resetCustForm(){document.getElementById('custId').value='';['custName','custContact','custNotes'].forEach(id=>document.getElementById(id).value='');document.getElementById('custTag').value='new';}
+
+async function saveCustomer(){
+  const name=document.getElementById('custName').value.trim();
+  if(!name){toast('Enter a name.');return;}
+  const id=document.getElementById('custId').value;
+  const c={name,contact:document.getElementById('custContact').value.trim(),tag:document.getElementById('custTag').value,notes:document.getElementById('custNotes').value.trim()};
+  try{
+    let result;
+    if(id){result=await api('PUT','/api/customers/'+id,c);customers=customers.map(x=>String(x._id)===id?result:x);}
+    else{result=await api('POST','/api/customers',c);customers.push(result);}
+    resetCustForm();renderCustomers();refreshCustSuggestions();toast('Customer saved.');
+  }catch(e){}
+}
+
+function editCustomer(id){
+  const c=customers.find(x=>String(x._id)===id);if(!c)return;
+  document.getElementById('custId').value=id;
+  document.getElementById('custName').value=c.name;
+  document.getElementById('custContact').value=c.contact||'';
+  document.getElementById('custTag').value=c.tag||'new';
+  document.getElementById('custNotes').value=c.notes||'';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function deleteCustomer(id){
+  if(!confirm('Delete?'))return;
+  try{await api('DELETE','/api/customers/'+id);customers=customers.filter(c=>String(c._id)!==id);renderCustomers();toast('Deleted.');}catch(e){}
+}
+
+function getCustStats(name){
+  const co=orders.filter(o=>o.customerName.toLowerCase()===name.toLowerCase());
+  return{n:co.length,spent:co.reduce((s,o)=>s+oTotals(o).rev,0)};
+}
+
+function renderCustomers(){
+  const search=(document.getElementById('custSearch').value||'').toLowerCase();
+  const ft=document.getElementById('custFilter').value;
+  let list=customers;
+  if(search)list=list.filter(c=>c.name.toLowerCase().includes(search));
+  if(ft)list=list.filter(c=>c.tag===ft);
+  document.getElementById('custCount').textContent=customers.length+' total';
+  const container=document.getElementById('custList');
+  if(!list.length){container.innerHTML='<div class="empty">No customers match.</div>';return;}
+  list=[...list].sort((a,b)=>{if(a.tag==='vip'&&b.tag!=='vip')return -1;if(b.tag==='vip'&&a.tag!=='vip')return 1;return a.name.localeCompare(b.name);});
+  const tc={vip:'vip',regular:'',new:'good',inactive:''};
+  container.innerHTML=list.map(c=>{
+    const st=getCustStats(c.name);
+    return `<div class="cust-row">
+      <div class="avatar">${ini(c.name)}</div>
+      <div class="cust-info">
+        <div class="cust-name">${c.name} <span class="pill ${tc[c.tag]||''}" style="margin-left:4px;">${c.tag}</span></div>
+        <div class="cust-meta">${c.contact||'No contact'} · ${st.n} order${st.n!==1?'s':''} · ${f2(st.spent)} OMR spent</div>
+        ${c.notes?`<div class="cust-note">${c.notes}</div>`:''}
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn ghost sm" onclick="editCustomer('${c._id}')">Edit</button>
+        <button class="btn danger sm" onclick="deleteCustomer('${c._id}')">Del</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function refreshCustSuggestions(){
+  const dl=document.getElementById('custSuggestions');
+  if(dl)dl.innerHTML=customers.map(c=>`<option value="${c.name}">`).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// MATERIALS
+// ══════════════════════════════════════════════════════════
+function resetMatForm(){
+  document.getElementById('matId').value='';
+  document.getElementById('matFormTitle').textContent='Add Material';
+  ['matName','matUnit','matSupplier'].forEach(id=>document.getElementById(id).value='');
+  ['matQty','matCost','matThresh'].forEach(id=>document.getElementById(id).value=0);
+}
+
+async function savePkg(){
+  const bc=+document.getElementById('pkgCost').value||0;
+  const bq=+document.getElementById('pkgQty').value||0;
+  const cpu=bq>0?bc/bq:0;
+  pkgSetup={bulkCost:bc,bulkQty:bq,costPerUnit:cpu};
+  document.getElementById('pkgPer').textContent=f3(cpu)+' OMR';
+  try{await api('POST','/api/settings/packaging',{value:pkgSetup});toast('Packaging saved: '+f3(cpu)+' OMR/abaya.');updateLive();}catch(e){}
+}
+
+async function saveMaterial(){
+  const name=document.getElementById('matName').value.trim();if(!name){toast('Enter a name.');return;}
+  const id=document.getElementById('matId').value;
+  const m={name,unit:document.getElementById('matUnit').value.trim()||'unit',qty:+document.getElementById('matQty').value||0,cost:+document.getElementById('matCost').value||0,threshold:+document.getElementById('matThresh').value||0,supplier:document.getElementById('matSupplier').value.trim()};
+  try{
+    let result;
+    if(id){result=await api('PUT','/api/materials/'+id,m);materials=materials.map(x=>String(x._id)===id?result:x);}
+    else{result=await api('POST','/api/materials',m);materials.push(result);}
+    resetMatForm();renderMaterials();renderDashboard();toast('Material saved.');
+  }catch(e){}
+}
+
+function editMaterial(id){
+  const m=materials.find(x=>String(x._id)===id);if(!m)return;
+  document.getElementById('matId').value=id;
+  document.getElementById('matFormTitle').textContent='Edit Material';
+  document.getElementById('matName').value=m.name;document.getElementById('matUnit').value=m.unit;
+  document.getElementById('matQty').value=m.qty;document.getElementById('matCost').value=m.cost;
+  document.getElementById('matThresh').value=m.threshold;document.getElementById('matSupplier').value=m.supplier||'';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function deleteMaterial(id){
+  if(!confirm('Delete?'))return;
+  try{await api('DELETE','/api/materials/'+id);materials=materials.filter(m=>String(m._id)!==id);renderMaterials();renderDashboard();toast('Deleted.');}catch(e){}
+}
+
+function renderMaterials(){
+  const tbody=document.getElementById('matsTable');tbody.innerHTML='';
+  document.getElementById('matsEmpty').style.display=materials.length?'none':'block';
+  materials.forEach(m=>{
+    const low=m.qty<=m.threshold;const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${m.name}${m.supplier?`<br><span style="font-size:11px;color:var(--dim);">${m.supplier}</span>`:''}</td><td>${m.unit}</td><td class="r">${f3(m.qty)}</td><td class="r">${f2(m.cost)}</td><td class="r">${f2(m.qty*m.cost)}</td><td><span class="pill ${low?'low':''}">${low?'Low':'OK'}</span></td><td><button class="btn ghost sm" onclick="editMaterial('${m._id}')">Edit</button> <button class="btn danger sm" onclick="deleteMaterial('${m._id}')">Del</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// GOALS
+// ══════════════════════════════════════════════════════════
+function resetGoalForm(){document.getElementById('goalId').value='';['goalName'].forEach(id=>document.getElementById(id).value='');document.getElementById('goalMonth').value='';document.getElementById('goalType').value='revenue';document.getElementById('goalTarget').value=0;}
+
+async function saveGoal(){
+  const name=document.getElementById('goalName').value.trim();
+  const month=document.getElementById('goalMonth').value;
+  const target=+document.getElementById('goalTarget').value||0;
+  if(!name||!month||target<=0){toast('Fill all goal fields.');return;}
+  const id=document.getElementById('goalId').value;
+  const g={name,month,type:document.getElementById('goalType').value,target};
+  try{
+    let result;
+    if(id){result=await api('PUT','/api/goals/'+id,g);goals=goals.map(x=>String(x._id)===id?result:x);}
+    else{result=await api('POST','/api/goals',g);goals.push(result);}
+    resetGoalForm();renderGoals();renderDashboard();toast('Goal saved.');
+  }catch(e){}
+}
+
+async function deleteGoal(id){
+  if(!confirm('Delete?'))return;
+  try{await api('DELETE','/api/goals/'+id);goals=goals.filter(g=>String(g._id)!==id);renderGoals();renderDashboard();toast('Deleted.');}catch(e){}
+}
+
+function editGoal(id){
+  const g=goals.find(x=>String(x._id)===id);if(!g)return;
+  document.getElementById('goalId').value=id;document.getElementById('goalName').value=g.name;
+  document.getElementById('goalMonth').value=g.month;document.getElementById('goalType').value=g.type;
+  document.getElementById('goalTarget').value=g.target;window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function getGoalProg(g){
+  const mo=orders.filter(o=>(o.orderDate||'').startsWith(g.month));
+  if(g.type==='revenue')return mo.reduce((s,o)=>s+oTotals(o).rev,0);
+  if(g.type==='profit')return mo.reduce((s,o)=>s+oTotals(o).profit,0);
+  return mo.length;
+}
+
+function renderGoals(){
+  const el=document.getElementById('goalsList');
+  const ce=document.getElementById('goalsCount');if(ce)ce.textContent=goals.length+' goals';
+  if(!goals.length){el.innerHTML='<div class="empty">No goals yet.</div>';return;}
+  el.innerHTML=[...goals].sort((a,b)=>b.month.localeCompare(a.month)).map(g=>{
+    const cur=getGoalProg(g);const pct=Math.min(100,g.target>0?cur/g.target*100:0);
+    const over=cur>g.target;const done=pct>=100;
+    const unit=g.type==='orders'?'orders':'OMR';
+    return `<div class="goal-item">
+      <div class="goal-meta">
+        <span style="font-weight:600;font-size:13.5px;">${g.name} <span style="font-size:11px;color:var(--dim);font-weight:400;">${g.month}</span></span>
+        <span style="font-size:11.5px;color:var(--dim);font-family:var(--mono);">${done?'✅':''} ${g.type==='orders'?cur:f2(cur)} / ${g.type==='orders'?g.target:f2(g.target)} ${unit} (${f2(pct)}%)</span>
+      </div>
+      <div class="pwrap"><div class="pbar ${over?'over':done?'done':''}" style="width:${pct}%"></div></div>
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:5px;">
+        <button class="btn ghost sm" onclick="editGoal('${g._id}')">Edit</button>
+        <button class="btn danger sm" onclick="deleteGoal('${g._id}')">Del</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// CALC
+// ══════════════════════════════════════════════════════════
+function runCalc(){
+  const fab=+document.getElementById('cFabric').value||0;
+  const tai=+document.getElementById('cTailor').value||0;
+  const ext=+document.getElementById('cExtras').value||0;
+  const oth=+document.getElementById('cOther').value||0;
+  const pkg=pkgSetup.costPerUnit||0;
+  const margin=+document.getElementById('cMargin').value||35;
+  const qty=+document.getElementById('cQty').value||1;
+  const total=fab+tai+ext+oth+pkg;
+  if(total<=0){document.getElementById('calcResult').innerHTML='<div style="font-size:12px;color:var(--dim);">Enter costs above.</div>';return;}
+  const price=margin<100?total/(1-margin/100):total*2;
+  const profit=price-total;
+  document.getElementById('calcResult').innerHTML=`
+    <div style="font-size:11.5px;color:var(--dim);margin-bottom:4px;">Recommended price for ${margin}% margin:</div>
+    <div class="calc-big">${f2(price)} OMR</div>
+    <div class="calc-break">
+      Total cost: <strong>${f2(total)} OMR</strong> (Fabric ${f2(fab)} + Tailor ${f2(tai)} + Extras ${f2(ext)} + Other ${f2(oth)} + Pkg ${f3(pkg)})<br>
+      Profit per abaya: <strong class="pos">${f2(profit)} OMR</strong><br>
+      ${qty>1?`For ${qty} abayas → Revenue <strong>${f2(price*qty)} OMR</strong> · Profit <strong class="pos">${f2(profit*qty)} OMR</strong><br>`:''}
+      <span style="color:var(--good);">40% margin: ${f2(total/0.60)} OMR | 50% margin: ${f2(total/0.50)} OMR</span>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// SPEND + INSIGHTS + CUTS
+// ══════════════════════════════════════════════════════════
+function getSpend(){
+  const s={fabric:0,tailor:0,extras:0,packaging:0,shipping:0,marketing:0};
+  orders.forEach(o=>{
+    o.items.forEach(it=>{s.fabric+=it.qty*(it.fabric||0);s.tailor+=it.qty*(it.tailor||0);s.extras+=it.qty*(it.extras||0);});
+    s.packaging+=(o.costs||{}).packaging||0;s.shipping+=(o.costs||{}).shipping||0;s.marketing+=(o.costs||{}).marketing||0;
+  });
+  return s;
+}
+
+function renderInsights(avgMargin){
+  const el=document.getElementById('insightsList');
+  if(!orders.length){el.innerHTML='<div class="empty">Log some orders to see insights.</div>';return;}
+  const insights=[];
+  if(avgMargin>=30)insights.push({t:'good',m:`Average margin is <strong>${f2(avgMargin)}%</strong> — healthy. You can reinvest in fabric quality.`});
+  else if(avgMargin>=15)insights.push({t:'warn',m:`Average margin is <strong>${f2(avgMargin)}%</strong> — workable but tight. Aim for 30%+.`});
+  else insights.push({t:'bad',m:`Average margin is <strong>${f2(avgMargin)}%</strong> — too thin. Raise prices or cut costs urgently.`});
+  const sm={};
+  orders.forEach(o=>o.items.forEach(it=>{
+    if(!sm[it.styleName])sm[it.styleName]={qty:0,rev:0,cost:0};
+    const u=(it.fabric||0)+(it.tailor||0)+(it.extras||0)+(pkgSetup.costPerUnit||0);
+    sm[it.styleName].qty+=it.qty;sm[it.styleName].rev+=it.qty*it.price;sm[it.styleName].cost+=it.qty*u;
+  }));
+  const losing=Object.entries(sm).filter(([,d])=>d.rev>0&&(d.rev-d.cost)/d.rev*100<10).sort((a,b)=>(a[1].rev-a[1].cost)/a[1].rev-(b[1].rev-b[1].cost)/b[1].rev);
+  if(losing.length)insights.push({t:'bad',m:`"<strong>${losing[0][0]}</strong>" has very low margin. Raise its price or simplify the design.`});
+  const stars=Object.entries(sm).filter(([,d])=>d.rev>0&&(d.rev-d.cost)/d.rev*100>=40&&d.qty>=2).sort((a,b)=>b[1].rev-a[1].rev);
+  if(stars.length)insights.push({t:'good',m:`"<strong>${stars[0][0]}</strong>" is your best performer at ${f2((stars[0][1].rev-stars[0][1].cost)/stars[0][1].rev*100)}% margin. Feature it more on Instagram.`});
+  const low=materials.filter(m=>m.qty<=m.threshold);
+  if(low.length)insights.push({t:'warn',m:`${low.length} material${low.length>1?'s':''} running low. Reorder before your next orders.`});
+  el.innerHTML=insights.map(i=>`<div class="insight"><span class="badge ${i.t}"></span><p>${i.m}</p></div>`).join('');
+}
+
+function renderCuts(spend,spendTotal,avgMargin){
+  const el=document.getElementById('cutsList');
+  if(!orders.length){el.innerHTML='<div class="empty">Log orders to see cost-cut suggestions.</div>';return;}
+  const cuts=[];
+  const fp=spendTotal>0?spend.fabric/spendTotal*100:0;
+  if(fp>50)cuts.push({i:'🧵',t:'Fabric is your biggest cost ('+f2(fp)+'%)',d:'Negotiate bulk rates — buying 20+ metres at once saves 10–15%. Source directly from Muttrah Souq instead of intermediaries.',s:'Est. saving: '+f2(spend.fabric*.12)+' OMR'});
+  const tp=spendTotal>0?spend.tailor/spendTotal*100:0;
+  if(tp>40)cuts.push({i:'✂️',t:'Tailor labor is high ('+f2(tp)+'%)',d:'Standardize your most popular patterns so tailors can work faster. A fixed monthly retainer is often cheaper than per-piece rates at volume.',s:'Est. saving: 10–20% on tailor costs with standardized patterns.'});
+  const pp=spendTotal>0?spend.packaging/spendTotal*100:0;
+  if(pp>15)cuts.push({i:'📦',t:'Packaging is high ('+f2(pp)+'%)',d:'Buy in bigger batches (500+ units) to cut costs 30–40%. Coordinate a joint bulk order with other small businesses.',s:'Next restock: order 2–3× current batch size.'});
+  const mp=spendTotal>0?spend.marketing/spendTotal*100:0;
+  if(mp>20)cuts.push({i:'📣',t:'Marketing spend is significant ('+f2(mp)+'%)',d:'Organic Instagram reels and customer reposts cost nothing and often outperform paid posts for abaya brands. Track which posts actually lead to DMs.',s:'Reallocate half your ad budget to customer loyalty programs.'});
+  if(avgMargin<20&&orders.length>2)cuts.push({i:'📈',t:'Overall margin is thin ('+f2(avgMargin)+'%)',d:'Use the Price Calculator to find the right price for each style. A 7–10% price increase on your best sellers is rarely noticed by loyal customers.',s:'A 7% price increase adds approx. '+f2(orders.reduce((s,o)=>s+oTotals(o).rev,0)*.07)+' OMR profit.'});
+  if(!cuts.length){el.innerHTML='<div class="insight"><span class="badge good"></span><p>Cost structure looks healthy. Keep monitoring as you scale.</p></div>';return;}
+  el.innerHTML=cuts.map(c=>`<div class="cut-row"><div class="cut-ico">${c.i}</div><div><div class="cut-title">${c.t}</div><div class="cut-desc">${c.d}</div><div class="cut-save">${c.s}</div></div></div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════
+function renderDashboard(){
+  const totals=orders.reduce((a,o)=>{const t=oTotals(o);a.rev+=t.rev;a.cost+=t.cost;a.profit+=t.profit;return a;},{rev:0,cost:0,profit:0});
+  const avgMargin=totals.rev>0?totals.profit/totals.rev*100:0;
+  const spend=getSpend();const st=Object.values(spend).reduce((s,v)=>s+v,0)||1;
+  document.getElementById('kpiRow').innerHTML=`
+    <div class="kpi"><div class="lbl">Total Revenue</div><div class="val">${f2(totals.rev)} OMR</div><div class="sub">${orders.length} orders</div></div>
+    <div class="kpi"><div class="lbl">Total Expenses</div><div class="val">${f2(totals.cost)} OMR</div><div class="sub">all costs</div></div>
+    <div class="kpi"><div class="lbl">Net Profit</div><div class="val ${totals.profit>=0?'good':'bad'}">${f2(totals.profit)} OMR</div><div class="sub">${totals.profit>=0?'in the green':'check pricing'}</div></div>
+    <div class="kpi"><div class="lbl">Avg. Margin</div><div class="val ${avgMargin>=30?'good':avgMargin<15?'bad':''}">${f2(avgMargin)}%</div><div class="sub">${avgMargin>=30?'healthy':avgMargin<15?'thin':'workable'}</div></div>`;
+  renderInsights(avgMargin);renderCuts(spend,st,avgMargin);
+  // Goals this month
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const tg=goals.filter(g=>g.month===thisMonth);
+  document.getElementById('dashGoalCard').style.display=tg.length?'block':'none';
+  document.getElementById('dashGoals').innerHTML=tg.map(g=>{
+    const cur=getGoalProg(g);const pct=Math.min(100,g.target>0?cur/g.target*100:0);
+    const over=cur>g.target;const done=pct>=100;const unit=g.type==='orders'?'orders':'OMR';
+    return `<div class="goal-item"><div class="goal-meta"><span style="font-weight:600;">${g.name}</span><span style="font-size:11.5px;color:var(--dim);">${done?'✅':''} ${g.type==='orders'?cur:f2(cur)} / ${g.type==='orders'?g.target:f2(g.target)} ${unit} (${f2(pct)}%)</span></div><div class="pwrap"><div class="pbar ${over?'over':done?'done':''}" style="width:${pct}%"></div></div></div>`;
+  }).join('');
+  // Bar chart
+  const mm={};orders.forEach(o=>{const k=(o.orderDate||'').slice(0,7);const t=oTotals(o);if(!mm[k])mm[k]={rev:0,exp:0};mm[k].rev+=t.rev;mm[k].exp+=t.cost;});
+  const months=Object.keys(mm).sort().slice(-6);
+  document.getElementById('chartLabel').textContent=months.length?'last '+months.length+' month(s)':'';
+  const maxV=Math.max(1,...months.map(m=>Math.max(mm[m].rev,mm[m].exp)));
+  const bc=document.getElementById('barChart');
+  bc.innerHTML=months.length?months.map(m=>{
+    const rh=Math.max(2,mm[m].rev/maxV*100);const eh=Math.max(2,mm[m].exp/maxV*100);
+    const lbl=new Date(m+'-01').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+    return `<div class="bc-col"><div class="bc-bars"><div class="bc-bar rev" style="width:14px;height:${rh}%;"></div><div class="bc-bar exp" style="width:14px;height:${eh}%;"></div></div><div class="bc-lbl">${lbl}</div></div>`;
+  }).join(''):'<div class="empty">No orders yet.</div>';
+  // Low stock
+  const low=materials.filter(m=>m.qty<=m.threshold);
+  document.getElementById('lowStockList').innerHTML=low.length?low.map(m=>`<div class="flex-between" style="padding:7px 0;border-bottom:1px solid var(--line);"><div>${m.name} <span style="font-size:11px;color:var(--dim);">(${f3(m.qty)} ${m.unit})</span></div><span class="pill low">Reorder</span></div>`).join(''):'<div class="empty">All materials OK.</div>';
+  // Style table
+  const sm={};orders.forEach(o=>o.items.forEach(it=>{if(!sm[it.styleName])sm[it.styleName]={qty:0,rev:0,cost:0};const u=(it.fabric||0)+(it.tailor||0)+(it.extras||0)+(pkgSetup.costPerUnit||0);sm[it.styleName].qty+=it.qty;sm[it.styleName].rev+=it.qty*it.price;sm[it.styleName].cost+=it.qty*u;}));
+  const st2=document.getElementById('styleTable');
+  const se=Object.entries(sm).sort((a,b)=>b[1].rev-a[1].rev);
+  st2.innerHTML=se.length?se.map(([n,d])=>{const mg=d.rev>0?(d.rev-d.cost)/d.rev*100:0;return `<tr><td>${n}</td><td class="r">${d.qty}</td><td class="r">${f2(d.rev)}</td><td class="r ${mg>=30?'pos':mg<15?'neg':''}">${f2(mg)}%</td></tr>`}).join(''):'<tr><td colspan="4" class="empty">No sales yet.</td></tr>';
+  // Spend breakdown
+  const sl={fabric:'Fabric',tailor:'Tailor',extras:'Extras',packaging:'Packaging',shipping:'Shipping',marketing:'Marketing'};
+  document.getElementById('spendBreakdown').innerHTML=Object.keys(spend).map(k=>{const p=spend[k]/st*100;return `<div style="margin-bottom:11px;"><div class="flex-between" style="font-size:12px;margin-bottom:3px;"><span>${sl[k]}</span><span style="color:var(--dim);">${f2(spend[k])} OMR · ${f2(p)}%</span></div><div style="height:5px;background:var(--charcoal);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${p}%;background:var(--gold);border-radius:3px;"></div></div></div>`;}).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// ANALYTICS
+// ══════════════════════════════════════════════════════════
+function renderAnalytics(){
+  if(!orders.length){['aKpi','aMonthChart','aChannelChart','aTopCust','aStyleTable','aProfitChart'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty">No orders yet.</div>';});return;}
+  const totals=orders.reduce((a,o)=>{const t=oTotals(o);a.rev+=t.rev;a.profit+=t.profit;return a;},{rev:0,profit:0});
+  const uniq=new Set(orders.map(o=>o.customerName)).size;
+  const rep=Object.values(orders.reduce((m,o)=>{m[o.customerName]=(m[o.customerName]||0)+1;return m;},{})).filter(c=>c>1).length;
+  document.getElementById('aKpi').innerHTML=`
+    <div class="kpi"><div class="lbl">Total Customers</div><div class="val">${uniq}</div><div class="sub">${rep} repeat buyers</div></div>
+    <div class="kpi"><div class="lbl">Avg. Order Value</div><div class="val">${f2(totals.rev/orders.length)} OMR</div><div class="sub">per order</div></div>
+    <div class="kpi"><div class="lbl">All-Time Profit</div><div class="val good">${f2(totals.profit)} OMR</div><div class="sub">net</div></div>`;
+  const mm={};orders.forEach(o=>{const k=(o.orderDate||'').slice(0,7);const t=oTotals(o);if(!mm[k])mm[k]={rev:0,profit:0};mm[k].rev+=t.rev;mm[k].profit+=t.profit;});
+  const months=Object.keys(mm).sort().slice(-12);
+  const maxR=Math.max(1,...months.map(m=>mm[m].rev));
+  const best=months.reduce((b,m)=>mm[m].rev>mm[b].rev?m:b,months[0]);
+  document.getElementById('aMonthChart').innerHTML=`<div class="mini-bars">${months.map(m=>{const h=Math.max(4,mm[m].rev/maxR*100);const l=new Date(m+'-01').toLocaleDateString('en-US',{month:'short'});return `<div class="mb-col"><div class="mb-bar" style="height:${h}%;"></div><div class="mb-lbl">${l}</div></div>`;}).join('')}</div><div style="font-size:11.5px;color:var(--dim);">Best: ${new Date(best+'-01').toLocaleDateString('en-US',{month:'long',year:'numeric'})} (${f2(mm[best].rev)} OMR)</div>`;
+  const cm={};orders.forEach(o=>{if(!cm[o.channel])cm[o.channel]={n:0,rev:0};cm[o.channel].n++;cm[o.channel].rev+=oTotals(o).rev;});
+  const tcr=Object.values(cm).reduce((s,v)=>s+v.rev,0)||1;
+  document.getElementById('aChannelChart').innerHTML=Object.entries(cm).sort((a,b)=>b[1].rev-a[1].rev).map(([ch,d])=>{const p=d.rev/tcr*100;return `<div style="margin-bottom:11px;"><div class="flex-between" style="font-size:12.5px;margin-bottom:3px;"><strong>${ch}</strong><span style="color:var(--dim);">${d.n} orders · ${f2(d.rev)} OMR (${f2(p)}%)</span></div><div style="height:6px;background:var(--charcoal);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${p}%;background:var(--gold);border-radius:3px;"></div></div></div>`;}).join('');
+  const custm={};orders.forEach(o=>{if(!custm[o.customerName])custm[o.customerName]={n:0,rev:0};custm[o.customerName].n++;custm[o.customerName].rev+=oTotals(o).rev;});
+  document.getElementById('aTopCust').innerHTML=Object.entries(custm).sort((a,b)=>b[1].rev-a[1].rev).slice(0,10).map(([n,d])=>`<tr><td>${n}${d.n>1?' <span class="pill good">Repeat</span>':''}</td><td class="r">${d.n}</td><td class="r">${f2(d.rev)}</td><td class="r">${f2(d.rev/d.n)}</td></tr>`).join('');
+  const sm={};orders.forEach(o=>o.items.forEach(it=>{if(!sm[it.styleName])sm[it.styleName]={qty:0,rev:0,cost:0};const u=(it.fabric||0)+(it.tailor||0)+(it.extras||0)+(pkgSetup.costPerUnit||0);sm[it.styleName].qty+=it.qty;sm[it.styleName].rev+=it.qty*it.price;sm[it.styleName].cost+=it.qty*u;}));
+  document.getElementById('aStyleTable').innerHTML=Object.entries(sm).sort((a,b)=>b[1].rev-a[1].rev).map(([n,d])=>{const m=d.rev>0?(d.rev-d.cost)/d.rev*100:0;return `<tr><td>${n}</td><td class="r">${d.qty}</td><td class="r">${f2(d.rev)}</td><td class="r ${m>=30?'pos':m<15?'neg':''}">${f2(m)}%</td></tr>`;}).join('');
+  const maxP=Math.max(1,...months.map(m=>Math.abs(mm[m].profit)));
+  document.getElementById('aProfitChart').innerHTML=`<div style="display:flex;gap:5px;align-items:flex-end;height:90px;margin:8px 0;">${months.map(m=>{const p=mm[m].profit;const h=Math.max(4,Math.abs(p)/maxP*100);const l=new Date(m+'-01').toLocaleDateString('en-US',{month:'short'});return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;"><div style="width:100%;border-radius:3px 3px 0 0;height:${h}%;background:${p>=0?'var(--good)':'var(--bad)'};"></div><div style="font-size:8.5px;color:var(--dim);margin-top:3px;">${l}</div></div>`;}).join('')}</div><div style="font-size:11.5px;color:var(--dim);">Green = profitable · Red = loss</div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER ALL
+// ══════════════════════════════════════════════════════════
+function renderAll(){
+  renderDashboard();renderCatalog();renderOrders();renderCustomers();renderMaterials();renderGoals();
+  refreshCustSuggestions();updateOrderCatalogList();runCalc();
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+document.getElementById('orderDate').value=new Date().toISOString().slice(0,10);
+addItemRow();
+checkDB();
+loadAll();
+</script>
+</body>
+</html>
